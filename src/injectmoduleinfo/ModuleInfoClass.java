@@ -112,7 +112,6 @@ public class ModuleInfoClass {
         }
         
         moduleString += "}";
-        //String moduleString = String.format("module %s {}", txtModuleName.getText());
         tmpModulePath = target.getParent() + File.separator + moduleInfo;
 
         try (Writer writer = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(tmpModulePath + javaStr), "utf-8"))) {

@@ -31,7 +31,7 @@ public class ModuleInfoForm extends javax.swing.JFrame {
         final JFileChooser fc = new JFileChooser();
 
         fc.setFileFilter(new FileNameExtensionFilter("Java Archive", "jar"));
-        fc.setDialogTitle("What jar should be jam packed with stupid?");
+        fc.setDialogTitle("What jar should be jam packed with double stuff oreo stuffing?");
 
         int choice = fc.showOpenDialog(this);
 

@@ -4,7 +4,7 @@ This injects custom module-info.class into non-modular java libraries, allowing 
 This is written in Java 8 and is itself non-modular, mostly because I think that is kind of funny.
 
 Why this exists:
-Java archives and libraries which were created in a non-modular way cannot be linked into runnable images. You get an auto-module error, which is super annoying. This utility allieviates the problem and allows you to inject a module class into the jar file, allowing it to be linked properly.
+Java archives and libraries which were created in a non-modular way cannot be linked into runnable images. You get an auto-module error, which is super annoying. This utility alleviates the problem and allows you to inject a module class into the jar file, allowing it to be linked properly.
 
 To Use:
 - Navigate to the jar you want to inject module-info.class into. 

@@ -1,10 +1,24 @@
-/*
+/*******************************************************
  * Copyright 2019 Draque Thompson
- */
+ * 
+ *  Module Injector is a module injection tool used for 
+ *  modularizing jar files. This allows them to be 
+ *  build into runnable images via jlink.
+ * 
+ *  No guarantees about anything. Use with caution.
+ *  This thing is very much a hack, and I hope that all
+ *  dependencies will be made modular so that no one
+ *  has to ever use it again..
+ * 
+ *******************************************************/
+
 package injectmoduleinfo;
 
 import java.awt.Cursor;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import javax.swing.JFileChooser;
 import javax.swing.JOptionPane;
 import javax.swing.filechooser.FileNameExtensionFilter;
@@ -13,9 +27,12 @@ import javax.swing.filechooser.FileNameExtensionFilter;
  *
  * @author draque
  */
-public class ModuleInfoForm extends javax.swing.JFrame {
+public final class ModuleInfoForm extends javax.swing.JFrame {
 
     private File target = null;
+    private String lastFilePath = null;
+    private final List<File> dependencies = new ArrayList<>();
+    
     /**
      * Creates new form TheForm
      */
@@ -28,26 +45,87 @@ public class ModuleInfoForm extends javax.swing.JFrame {
      * Selects jar archive
      */
     private void selectTarget() {
-        final JFileChooser fc = new JFileChooser();
-
-        fc.setFileFilter(new FileNameExtensionFilter("Java Archive", "jar"));
-        fc.setDialogTitle("What jar should be jam packed with double stuff oreo stuffing?");
-
-        int choice = fc.showOpenDialog(this);
-
-        if (choice == JFileChooser.APPROVE_OPTION) {
-            target = fc.getSelectedFile();
+        File[] newTarget = selectJarFiles("Select Java Arhcive to Modularize", false);
+        
+        if (newTarget != null && newTarget.length > 0) {
+            target = newTarget[0];
             txtTargetJar.setText(target.getAbsolutePath());
+            lastFilePath = target.getParent();
+            clearDependencies();
         }
     }
     
     private void setUIEnabled(boolean enable) {
         btnInject.setEnabled(enable);
         btnSelect.setEnabled(enable);
-        txtModuleName.setEnabled(enable);
-        txtExports.setEditable(enable);
+        btnAddDep.setEnabled(enable);
+        btnClearDep.setEnabled(enable);
+    }
+    
+    private void clearDependencies() {
+        dependencies.clear();
+        updateDependencyDisplay();
+    }
+    
+    private void updateDependencyDisplay() {
+        String depText = "";
+        
+        for (File dep : dependencies) {
+            depText += dep.getName() + "\n";
+        }
+        
+        txtDependencies.setText(depText);
     }
 
+    private void addDependency() {
+        File[] newDependencies = selectJarFiles("Select Java Archive Dependency", true);
+        
+        if (newDependencies != null && newDependencies.length > 0) {
+            lastFilePath = newDependencies[0].getParent();
+            
+            dependencies.addAll(Arrays.asList(newDependencies));
+            updateDependencyDisplay();
+        }
+    }
+    
+    private File[] selectJarFiles(String title, boolean multiSelect) {
+        File[] ret = null;
+        final JFileChooser fc = new JFileChooser(lastFilePath);
+
+        fc.setFileFilter(new FileNameExtensionFilter("Java Archive", "jar"));
+        fc.setDialogTitle(title);
+        fc.setMultiSelectionEnabled(multiSelect);
+        
+        int choice = fc.showOpenDialog(this);
+
+        if (choice == JFileChooser.APPROVE_OPTION) {
+            ret = fc.getSelectedFiles();
+            
+            if (ret == null || ret.length == 0) {
+                ret = new File[]{fc.getSelectedFile()};
+            }
+        }
+        
+        return ret;
+    }
+    
+    private void inject() {
+        if (target != null) {
+            target = new File(txtTargetJar.getText()); // ensures out of date files never used
+            setUIEnabled(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            try {
+                ModuleInfoClass.inject(target, dependencies);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(null, "Something went wrong:\n" + e.getLocalizedMessage());
+            }
+            setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
+            setUIEnabled(true);
+        } else {
+            JOptionPane.showMessageDialog(null, "Please select target Java archive.");
+        }
+    }
+    
     /**
      * This method is called from within the constructor to initialize the form.
      * WARNING: Do NOT modify this code. The content of this method is always
@@ -60,11 +138,12 @@ public class ModuleInfoForm extends javax.swing.JFrame {
         txtTargetJar = new javax.swing.JTextField();
         btnSelect = new javax.swing.JButton();
         jPanel1 = new javax.swing.JPanel();
-        txtModuleName = new javax.swing.JTextField();
-        jLabel1 = new javax.swing.JLabel();
-        txtExports = new javax.swing.JTextField();
-        jLabel2 = new javax.swing.JLabel();
         jLabel3 = new javax.swing.JLabel();
+        jScrollPane1 = new javax.swing.JScrollPane();
+        txtDependencies = new javax.swing.JTextArea();
+        jLabel4 = new javax.swing.JLabel();
+        btnAddDep = new javax.swing.JButton();
+        btnClearDep = new javax.swing.JButton();
         btnInject = new javax.swing.JButton();
 
         setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
@@ -82,17 +161,31 @@ public class ModuleInfoForm extends javax.swing.JFrame {
 
         jPanel1.setBorder(javax.swing.BorderFactory.createLineBorder(new java.awt.Color(0, 0, 0)));
 
-        txtModuleName.setToolTipText("Name of module goes here");
-
-        jLabel1.setText("Module Name");
-
-        txtExports.setToolTipText("comma delimited paths this module exports go here");
-
-        jLabel2.setText("Exports");
-
         jLabel3.setForeground(new java.awt.Color(153, 153, 153));
         jLabel3.setText("Author: Draque Thompson");
         jLabel3.setToolTipText("");
+
+        txtDependencies.setEditable(false);
+        txtDependencies.setColumns(20);
+        txtDependencies.setRows(5);
+        jScrollPane1.setViewportView(txtDependencies);
+
+        jLabel4.setText("Dependencies required");
+        jLabel4.setToolTipText("");
+
+        btnAddDep.setText("Add Dependency");
+        btnAddDep.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnAddDepActionPerformed(evt);
+            }
+        });
+
+        btnClearDep.setText("Clear All");
+        btnClearDep.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                btnClearDepActionPerformed(evt);
+            }
+        });
 
         javax.swing.GroupLayout jPanel1Layout = new javax.swing.GroupLayout(jPanel1);
         jPanel1.setLayout(jPanel1Layout);
@@ -101,31 +194,30 @@ public class ModuleInfoForm extends javax.swing.JFrame {
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, jPanel1Layout.createSequentialGroup()
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                            .addComponent(txtExports)
-                            .addComponent(txtModuleName, javax.swing.GroupLayout.DEFAULT_SIZE, 282, Short.MAX_VALUE))
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                            .addComponent(jLabel1)
-                            .addComponent(jLabel2)))
+                    .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 444, Short.MAX_VALUE)
                     .addGroup(jPanel1Layout.createSequentialGroup()
-                        .addComponent(jLabel3)
+                        .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                            .addComponent(jLabel3)
+                            .addComponent(jLabel4))
                         .addGap(0, 0, Short.MAX_VALUE)))
                 .addContainerGap())
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addComponent(btnAddDep)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                .addComponent(btnClearDep))
         );
         jPanel1Layout.setVerticalGroup(
             jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(jPanel1Layout.createSequentialGroup()
                 .addContainerGap()
+                .addComponent(jLabel4)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(jScrollPane1, javax.swing.GroupLayout.DEFAULT_SIZE, 263, Short.MAX_VALUE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(txtModuleName, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel1))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(txtExports, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 130, Short.MAX_VALUE)
+                    .addComponent(btnAddDep)
+                    .addComponent(btnClearDep))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addComponent(jLabel3)
                 .addContainerGap())
         );
@@ -147,7 +239,7 @@ public class ModuleInfoForm extends javax.swing.JFrame {
                 .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addComponent(jPanel1, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
                     .addGroup(layout.createSequentialGroup()
-                        .addComponent(txtTargetJar, javax.swing.GroupLayout.DEFAULT_SIZE, 281, Short.MAX_VALUE)
+                        .addComponent(txtTargetJar, javax.swing.GroupLayout.DEFAULT_SIZE, 351, Short.MAX_VALUE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(btnSelect)))
                 .addContainerGap())
@@ -176,16 +268,16 @@ public class ModuleInfoForm extends javax.swing.JFrame {
     }//GEN-LAST:event_btnSelectActionPerformed
 
     private void btnInjectActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnInjectActionPerformed
-        if (target != null) {
-            setUIEnabled(false);
-            setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-            ModuleInfoClass.inject(target, txtModuleName.getText(), txtExports.getText());
-            setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR));
-            setUIEnabled(true);
-        } else {
-            JOptionPane.showMessageDialog(null, "Please select target Java archive.");
-        }
+        inject();
     }//GEN-LAST:event_btnInjectActionPerformed
+
+    private void btnClearDepActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnClearDepActionPerformed
+        clearDependencies();
+    }//GEN-LAST:event_btnClearDepActionPerformed
+
+    private void btnAddDepActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnAddDepActionPerformed
+        addDependency();
+    }//GEN-LAST:event_btnAddDepActionPerformed
 
     /**
      * @param args the command line arguments
@@ -203,20 +295,18 @@ public class ModuleInfoForm extends javax.swing.JFrame {
                     break;
                 }
             }
-        } catch (ClassNotFoundException ex) {
-            java.util.logging.Logger.getLogger(ModuleInfoForm.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (InstantiationException ex) {
-            java.util.logging.Logger.getLogger(ModuleInfoForm.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (IllegalAccessException ex) {
-            java.util.logging.Logger.getLogger(ModuleInfoForm.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
-        } catch (javax.swing.UnsupportedLookAndFeelException ex) {
+        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | javax.swing.UnsupportedLookAndFeelException ex) {
             java.util.logging.Logger.getLogger(ModuleInfoForm.class.getName()).log(java.util.logging.Level.SEVERE, null, ex);
         }
+        //</editor-fold>
+        //</editor-fold>
+        
         //</editor-fold>
         //</editor-fold>
 
         /* Create and display the form */
         java.awt.EventQueue.invokeLater(new Runnable() {
+            @Override
             public void run() {
                 new ModuleInfoForm().setVisible(true);
             }
@@ -224,14 +314,15 @@ public class ModuleInfoForm extends javax.swing.JFrame {
     }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
+    private javax.swing.JButton btnAddDep;
+    private javax.swing.JButton btnClearDep;
     private javax.swing.JButton btnInject;
     private javax.swing.JButton btnSelect;
-    private javax.swing.JLabel jLabel1;
-    private javax.swing.JLabel jLabel2;
     private javax.swing.JLabel jLabel3;
+    private javax.swing.JLabel jLabel4;
     private javax.swing.JPanel jPanel1;
-    private javax.swing.JTextField txtExports;
-    private javax.swing.JTextField txtModuleName;
+    private javax.swing.JScrollPane jScrollPane1;
+    private javax.swing.JTextArea txtDependencies;
     private javax.swing.JTextField txtTargetJar;
     // End of variables declaration//GEN-END:variables
 }
